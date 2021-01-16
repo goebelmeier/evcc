@@ -18,6 +18,9 @@ TARGETS := arm.v6,arm.v8,amd64
 IMAGE_FILE := evcc_$(TAG_NAME).image
 IMAGE_ROOTFS := evcc_$(TAG_NAME).rootfs
 IMAGE_OPTIONS := -hostname evcc -http_port 8080 github.com/gokrazy/serial-busybox github.com/andig/brokenglass github.com/andig/evcc
+PKG_EVCC_BUILD_FLAGS := -tags=release -ldflags \
+	-X github.com/andig/evcc/server.Version=$(VERSION) -X github.com/andig/evcc/server.Commit=$(SHA)
+PKG_SSH_FLAGS := -forward private-network
 
 default: clean install npm assets lint test build
 
@@ -73,23 +76,22 @@ publish-images:
 	seihon publish --dry-run=false --template docker/tmpl.Dockerfile --base-runtime-image alpine:$(ALPINE_VERSION) \
 	   --image-name $(DOCKER_IMAGE) -v "latest" -v "$(TAG_NAME)" --targets=$(TARGETS)
 
-image:
+image-prepare:
 	go get github.com/gokrazy/tools/cmd/gokr-packer
 	mkdir -p buildargs/github.com/andig/evcc
-	echo "$(BUILD_ARGS)" > buildargs/github.com/andig/evcc/buildargs.txt
-	gokr-packer -overwrite=$(IMAGE_FILE) -target_storage_bytes=1258299392 $(IMAGE_OPTIONS)
+	echo "$(PKG_EVCC_BUILD_FLAGS)" > buildflags/github.com/andig/evcc/buildflags.txt
+	mkdir -p flags/github.com/andig/evcc
+	echo "$(PKG_SSH_FLAGS)" > flags/github.com/andig/evcc/flags.txt
 
-	# create filesystem
-	loop=$$(sudo losetup --find --show -P $(IMAGE_FILE)); sudo mkfs.ext4 $${loop}p4
+image:
+	gokr-packer -overwrite=$(IMAGE_FILE) -target_storage_bytes=1258299392 $(IMAGE_OPTIONS)
+	loop=$$(sudo losetup --find --show -P $(IMAGE_FILE)); sudo mkfs.ext4 $${loop}p4;
+	# tmpdir=$$(mktemp -d); sudo mount -t auto $${loop}p4 $${tmpdir}; cat
 	gzip -f -k $(IMAGE_FILE)
 
 image-rootfs:
-	mkdir -p buildargs/github.com/andig/evcc
-	echo "$(BUILD_ARGS)" > buildargs/github.com/andig/evcc/buildargs.txt
 	gokr-packer -overwrite_root=$(IMAGE_ROOTFS) $(IMAGE_OPTIONS)
 	gzip -f -k $(IMAGE_ROOTFS)
 
 image-update:
-	mkdir -p buildargs/github.com/andig/evcc
-	echo "$(BUILD_ARGS)" > buildargs/github.com/andig/evcc/buildargs.txt
 	gokr-packer -update yes $(IMAGE_OPTIONS)

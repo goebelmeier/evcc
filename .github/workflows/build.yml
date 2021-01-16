@@ -133,11 +133,14 @@ jobs:
         go-version: ^1.14
       id: go
 
-    - name: Build Image
+    - name: Prepare Image
       run: |
         mkdir /home/runner/.config/gokrazy
         echo ${{ secrets.IMAGE_PASS }}> /home/runner/.config/gokrazy/http-password.txt
-        make image
+        make image-prepare
+
+    - name: Build Image
+      run: make image
 
     - name: Build Root Filesystem
       run: make image-rootfs
